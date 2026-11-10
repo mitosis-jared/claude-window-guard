@@ -21,19 +21,23 @@
 set -uo pipefail
 
 # Only guard Bash tool calls (BashOutput etc. pass through).
-input=$(cat)
-tool_name=$(printf '%s' "$input" | grep -o '"tool_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"tool_name"[[:space:]]*:[[:space:]]*"//;s/"$//')
-[ "$tool_name" = "Bash" ] || exit 0
+# --- Main (only when executed, not sourced) ---------------------------------
+guard_main() {
+  local input tool_name
+  input=$(cat)
+  tool_name=$(printf '%s' "$input" | grep -o '"tool_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"tool_name"[[:space:]]*:[[:space:]]*"//;s/"$//')
+  [ "$tool_name" = "Bash" ] || return 0
 
-[ "${CLAUDE_WINDOW_GUARD:-1}" = "0" ] && exit 0
+  [ "${CLAUDE_WINDOW_GUARD:-1}" = "0" ] && return 0
 
-block() {
-  printf '{"decision":"block","reason":"%s"}' "$1"
-  exit 0
-}
-
-warn_only() {
-  [ "${CLAUDE_WINDOW_GUARD:-1}" = "warn" ]
+  if ! is_focused; then
+    local MSG="Window guard: this Claude session's terminal is NOT the focused window. You may be about to run a command meant for a DIFFERENT Claude window. Click this terminal first, then retry. (Disable with CLAUDE_WINDOW_GUARD=0.)"
+    if warn_only; then
+      printf '{"decision":"approve","hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecisionReason":"%s"}}' "$MSG"
+      return 0
+    fi
+    block "$MSG"
+  fi
 }
 
 # --- Focus check -----------------------------------------------------------
@@ -87,13 +91,16 @@ is_focused() {
   esac
 }
 
-if ! is_focused; then
-  MSG="Window guard: this Claude session's terminal is NOT the focused window. You may be about to run a command meant for a DIFFERENT Claude window. Click this terminal first, then retry. (Disable with CLAUDE_WINDOW_GUARD=0.)"
-  if warn_only; then
-    printf '{"decision":"approve","hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecisionReason":"%s"}}' "$MSG"
-    exit 0
-  fi
-  block "$MSG"
-fi
+block() {
+  printf '{"decision":"block","reason":"%s"}' "$1"
+  exit 0
+}
 
-exit 0
+warn_only() {
+  [ "${CLAUDE_WINDOW_GUARD:-1}" = "warn" ]
+}
+
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  guard_main
+  exit 0
+fi

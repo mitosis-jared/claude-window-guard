@@ -1,25 +1,26 @@
 # claude-window-guard
 
-Stop typing into the wrong Claude Code window.
+Stop Claude Code from running commands in the wrong window.
 
-If you run multiple Claude Code sessions side by side, you *will* eventually
-type a command meant for window A into window B. Sometimes that's harmless.
-Sometimes you just told Claude to `rm -rf` in the wrong repo.
-
-This is a tiny shell guard that detects the mistake before it happens: it
-checks whether the terminal you're typing into is actually the window your
-OS has focused. If it isn't, it blocks the command and flashes a warning.
+You have three Claude Code sessions open. You type a command meant for window A
+into window B. Claude in window B happily executes it — in the wrong repo, on
+the wrong branch, against the wrong server. This hook catches that mistake
+before the command runs.
 
 ## How it works
 
-- Installs a `DEBUG`-trap preexec hook in your shell (bash).
-- When a command fires inside a shell that is (or is a parent of) a running
-  `claude` process, it asks the OS which window is focused:
-  - macOS: `osascript` (System Events)
-  - Linux/X11: `xdotool`
-  - Wayland: best-effort, never blocks when it can't tell.
-- If the focused window isn't your terminal, the command is blocked with a
-  loud warning. Click the right window, run it again.
+A Claude Code **PreToolUse hook**. Before every Bash tool call, it asks the OS
+which window is focused:
+
+- **Linux/X11** — `xdotool getactivewindow getwindowpid`, compared against the
+  hook process's own ancestry. If the focused window's PID isn't in this
+  session's process tree, you're typing into a different window.
+- **macOS** — `osascript` compares the frontmost app against the terminal that
+  spawned the hook.
+- **Wayland** — can't reliably tell, so it never blocks (fails open).
+
+If the terminal running *this* Claude isn't focused, the tool call is blocked
+with a clear reason. Click the right window, retry, done.
 
 ## Install
 
@@ -29,32 +30,23 @@ cd claude-window-guard
 ./install.sh
 ```
 
-Then restart your shell or `source ~/.bashrc`.
+Restart your Claude Code sessions. To remove: `./install.sh --uninstall`.
 
-## Usage
+## Options
 
-It's automatic. When it saves you, you'll see:
+- `CLAUDE_WINDOW_GUARD=0` — disable entirely (env of the Claude process).
+- `CLAUDE_WINDOW_GUARD=warn` — allow but note it.
 
-```
-⚠️  CLAUDE WINDOW GUARD: this terminal is NOT the focused window.
-    You may be about to type into the WRONG Claude session.
-    Click this window first, then re-run your command.
-```
+## Why a hook and not a shell alias?
 
-### Options
-
-- `CLAUDE_WINDOW_GUARD=0` — disable for one command / one session.
-- `CLAUDE_WINDOW_GUARD=warn` — warn but don't block.
+The mistake happens inside Claude Code's Bash tool, not your raw shell. A
+PreToolUse hook is the only layer that sees the command *and* can block it
+before execution. Shell-level guards can't see tool calls.
 
 ## Requirements
 
-- bash
-- macOS: none beyond the OS. Linux/X11: `xdotool`.
-
-## Uninstall
-
-Remove the claude-window-guard block from `~/.bashrc` (or run
-`./install.sh --uninstall`).
+- Claude Code
+- Linux/X11: `xdotool`. macOS: nothing extra.
 
 ## License
 

@@ -48,6 +48,21 @@ before execution. Shell-level guards can't see tool calls.
 - Claude Code
 - Linux/X11: `xdotool`. macOS: nothing extra.
 
+## Notes
+
+- **Headless / server boxes**: the guard fails open (never blocks) when it
+  can't determine window focus — no xdotool, no X display, Wayland. If you
+  run Claude Code over SSH with no local window manager, it will simply
+  pass everything through.
+
+## Development
+
+```bash
+./test.sh   # 8 tests, no network needed
+```
+
+CI runs the suite on every push (`.github/workflows/ci.yml`).
+
 ## License
 
 MIT

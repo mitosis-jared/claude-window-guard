@@ -45,9 +45,6 @@ focused_pid_of_active_window() {
       [ -n "${DISPLAY:-}" ] || { echo "unknown"; return; }
       xdotool getactivewindow getwindowpid 2>/dev/null || echo "unknown"
       ;;
-    Darwin)
-      echo "unknown"  # handled separately below
-      ;;
     *)
       echo "unknown"
       ;;
@@ -93,7 +90,7 @@ is_focused() {
 if ! is_focused; then
   MSG="Window guard: this Claude session's terminal is NOT the focused window. You may be about to run a command meant for a DIFFERENT Claude window. Click this terminal first, then retry. (Disable with CLAUDE_WINDOW_GUARD=0.)"
   if warn_only; then
-    printf '{"decision":"approve"}'
+    printf '{"decision":"approve","hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecisionReason":"%s"}}' "$MSG"
     exit 0
   fi
   block "$MSG"
